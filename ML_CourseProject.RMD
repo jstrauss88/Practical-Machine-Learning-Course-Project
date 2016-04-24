@@ -1,0 +1,88 @@
+---
+title: "Predicting how well an exercise is performed"
+author: "Jordan Strauss"
+date: "April 24, 2016"
+output: html_document
+---
+
+
+# Summary
+We will try to determine how well people perform a weightlifting excersize (dumbell curls) using data from accelerometers attached at different locations to their bodies
+
+
+Load library's set seed
+```{r}
+library(caret);library(randomForest)
+set.seed(12345)
+```
+
+#Data import
+Download the dataset from the web and read into R.  Read blank entries as NAs
+```{r}
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "MLCTrain.csv")          
+TrainMaster<- read.csv("MLCTrain.csv", header=T, na.strings=c("","NA"))
+```
+
+# Exploratory Data Analysis
+
+Check out the dataset by using summary and examining the class of the columns
+
+
+```{r}
+#summary(TrainMaster)
+#lapply(TrainMaster,Class)
+```
+
+The response field is classe and it is spuriously correlated to the index field x.  It is also clear that there are a number of columns which are almost entirely NAs, except when the "new_window" column is equal to yes.  And there are a number of columns such as timestamps, user names and entry numbers which are not related to movements and should not be considered when training our models.  
+
+#Cleaning the data
+
+Filter the data such that the dataset only includes the predictor variables we want and the response
+
+```{r}
+
+#Filter out new window =yes
+TrainMaster<-TrainMaster[TrainMaster$new_window!="yes",]
+#Filter out Columns consisting of all NAs
+TrainMaster <- TrainMaster[,colSums(is.na(TrainMaster))<nrow(TrainMaster)]
+#Filter out Columns which are not the response or accellerometer data
+TrainMaster<-TrainMaster[,-c(1,3,4,5,6,7)]
+```
+
+
+#Build Model
+We split the data set into a training and a test set.  Since this is a classification problem and we the problem is straightfoward enough such that interpretability is not a major concern, we fit a model using Random Forest
+```{r}
+intrain<-createDataPartition(TrainMaster$classe,p=.7,list = FALSE)
+training<-TrainMaster[intrain,]
+testing<-TrainMaster[-intrain,]
+modFit1<-randomForest(classe~.,data=training,importance=TRUE)
+modFit1
+```
+
+Random forest fits a model with 500 trees,and an expected out of sample error of ~.5%
+
+Plot variable importance
+```{r}
+varImpPlot(modFit1)
+```
+
+
+#Cross Validation
+Predict values on the testing set and check accuracy
+```{r}
+pred1<-predict(modFit1,testing)
+confusionMatrix(pred1,testing$classe)
+```
+
+Model shows an accuary of >99%
+
+# Course Project Prediction Quiz
+
+Download and import test data, predict classe using random forest model
+
+```{r}
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "MLCTest.csv")          
+test<-read.csv("MLCTest.csv",header = T,na.strings=c("","NA"))
+predict(modFit1,test)
+```
